@@ -14,7 +14,7 @@
 # Optional custom-command overrides (skip im-select entirely when set):
 #   @sidebar_ime_enter_cmd  Shell command to run when entering the sidebar
 #   @sidebar_ime_leave_cmd  Shell command to run when leaving the sidebar
-#                           (receives previous input source as first argument)
+#                           The previous input source is passed as the first argument ($1).
 
 SIDEBAR_PID="$1"
 
@@ -22,16 +22,12 @@ SIDEBAR_PID="$1"
 enabled="$(tmux show-options -gv @sidebar_ime_switch 2>/dev/null)"
 [ "$enabled" = "1" ] || exit 0
 
-# ── Helper: switch IME using im-select or a custom command ───────────────────
+# ── Helpers ──────────────────────────────────────────────────────────────────
 switch_ime() {
     local target="$1"
-    local custom_cmd="$2"
-    if [ -n "$custom_cmd" ]; then
-        eval "$custom_cmd" 2>/dev/null
-    elif command -v im-select &>/dev/null; then
+    if command -v im-select &>/dev/null; then
         im-select "$target" 2>/dev/null
     fi
-    # silently succeed when no switching mechanism is available
 }
 
 get_current_ime() {
@@ -46,10 +42,8 @@ if [ -n "$SIDEBAR_PID" ]; then
     enter_cmd="$(tmux show-options -gv @sidebar_ime_enter_cmd 2>/dev/null)"
 
     if [ -n "$enter_cmd" ]; then
-        # User-defined command; they manage save/restore themselves if desired.
         eval "$enter_cmd" 2>/dev/null
     else
-        # Save current IME before switching so we can restore it later.
         prev="$(get_current_ime)"
         if [ -n "$prev" ]; then
             tmux set -g @sidebar_prev_ime "$prev"
@@ -57,19 +51,28 @@ if [ -n "$SIDEBAR_PID" ]; then
 
         src="$(tmux show-options -gv @sidebar_ime_source 2>/dev/null)"
         [ -z "$src" ] && src="com.apple.keylayout.ABC"
-        switch_ime "$src" ""
+        switch_ime "$src"
     fi
+
+    # Mark that we are inside the sidebar so the leave branch knows.
+    tmux set -g @sidebar_ime_active 1
 else
-    # Leaving sidebar (or navigating between non-sidebar panes) ───────────────
+    # Leaving sidebar ─────────────────────────────────────────────────────────
+    # Only run when we were actually in the sidebar (prevents false triggers
+    # when navigating between two non-sidebar panes).
+    was_active="$(tmux show-options -gv @sidebar_ime_active 2>/dev/null)"
+    [ "$was_active" = "1" ] || exit 0
+
+    tmux set -g @sidebar_ime_active ""
+
     leave_cmd="$(tmux show-options -gv @sidebar_ime_leave_cmd 2>/dev/null)"
+    prev="$(tmux show-options -gv @sidebar_prev_ime 2>/dev/null)"
 
     if [ -n "$leave_cmd" ]; then
-        eval "$leave_cmd" 2>/dev/null
-    else
-        prev="$(tmux show-options -gv @sidebar_prev_ime 2>/dev/null)"
-        if [ -n "$prev" ]; then
-            switch_ime "$prev" ""
-            tmux set -g @sidebar_prev_ime ""
-        fi
+        eval "$leave_cmd" "$prev" 2>/dev/null
+    elif [ -n "$prev" ]; then
+        switch_ime "$prev"
     fi
+
+    tmux set -g @sidebar_prev_ime ""
 fi

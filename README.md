@@ -35,6 +35,7 @@ A tmux sidebar that monitors all AI coding agents (Claude Code, Codex) across ev
 - tmux 3.0+
 - [Rust](https://rustup.rs/) (only if building from source)
 - [GitHub CLI](https://cli.github.com/) (optional, for PR number display in Git tab)
+- [im-select](https://github.com/daipeihust/im-select) (optional, for automatic IME switching)
 
 ## Installation
 
@@ -317,6 +318,43 @@ set -g @sidebar_prompt_lines 3           # max prompt display lines (default: 3)
 set -g @sidebar_activity_lines 8         # max activity log entries (default: 8)
 
 run-shell ~/.tmux/plugins/tmux-agent-sidebar/tmux-agent-sidebar.tmux
+```
+
+### IME Switching (Optional)
+
+Automatically switch your input method to English (e.g. ABC) when the sidebar pane gains focus, and restore the previous input source when you leave. This is useful for users who normally use a non-Latin IME (Japanese, Chinese, Korean, etc.) but need English input for sidebar keyboard shortcuts.
+
+**Prerequisites:**
+
+```sh
+# macOS
+brew tap daipeihust/tap && brew install im-select
+
+# Verify installation
+im-select
+# Should print your current input source, e.g. com.apple.keylayout.ABC
+```
+
+**Enable:**
+
+```tmux
+set -g @sidebar_ime_switch 1
+```
+
+**Configuration:**
+
+| Option | Default | Description |
+|---|---|---|
+| `@sidebar_ime_switch` | `0` | Set to `1` to enable IME switching |
+| `@sidebar_ime_source` | `com.apple.keylayout.ABC` | Input source to activate when entering the sidebar |
+| `@sidebar_ime_enter_cmd` | (none) | Custom shell command to run instead of `im-select` when entering |
+| `@sidebar_ime_leave_cmd` | (none) | Custom shell command to run when leaving (receives previous input source as `$1`) |
+
+**Custom command example (using macism instead of im-select):**
+
+```tmux
+set -g @sidebar_ime_enter_cmd "macism com.apple.keylayout.ABC"
+set -g @sidebar_ime_leave_cmd "macism"
 ```
 
 ## Uninstalling
